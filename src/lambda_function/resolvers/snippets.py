@@ -1,25 +1,23 @@
 #!/usr/bin/env python3.8
 from resolvers import router
-from codebytes.snippets import Snippet
-from codebytes.globals import get_user
+from codebytes.runtimes import Snippet
 
 
 @router.route(path="Snippet.Create")
 def create_snippet():
     snippet = Snippet(
-        **router.arguments,
-        user=get_user()
+        **router.arguments
     )
+    print(snippet.dict())
     if res := snippet.create():
-        return res.item()
+        return res.item
 
 
-@router.route(path="Snippet.Create")
+@router.route(path="Snippet.Update")
 def update_snippet():
     name = router.arguments["name"]
     if snippet := Snippet.get(
-        name=name,
-        user=get_user
+        name=name
     ):
         return snippet.update(router.arguments).dict()
     else:
@@ -30,8 +28,7 @@ def update_snippet():
 def execute_snippet():
     name = router.arguments["name"]
     if snippet := Snippet.get(
-        name=name,
-        user=get_user()
+        name=name
     ):
         return snippet.exec()
     else:
@@ -43,7 +40,6 @@ def get_snippet():
     name = router.arguments["name"]
     if snippet := Snippet.get(
         name=name,
-        user=get_user(),
         as_dict=True
     ):
         return snippet

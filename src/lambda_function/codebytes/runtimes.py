@@ -1,20 +1,9 @@
 #!/usr/bin/env python3.8
-from typing import (
-    NamedTuple,
-    List
-)
+from typing import List
 from json import dumps, loads
 from time import time
 from uuid import uuid4
-from globals import (
-    TABLE,
-    LAMBDA,
-    DEFAULT_LAMBDA_TIMEOUT,
-    FREE_SNIPPET_TTL_HOURS,
-    APP_URL,
-    SYSTEM_USER,
-    isotime
-)
+from .globals import Globals, isotime
 from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key, Attr
 
@@ -43,7 +32,9 @@ class CodeBytes:
         "updatedAt"
     }
 
-    def __new__(cls, *args, user=SYSTEM_USER, **kwargs):
+    def __new__(cls, *args, **kwargs):
+        if "user" not in kwargs:
+            kwargs["user"] = Globals().user
         cls.__immutable |= cls.immutable
         cls.__required |= cls.required
         cls.__indexes = cls._indexes
@@ -79,12 +70,11 @@ class CodeBytes:
     def get(
         cls,
         name: str,
-        user: str,
+        user: str = Globals().user,
         as_dict: bool = False
     ):
-        user = user or "SYSTEM"
         sk = f"{cls._identifier}~{name}"
-        item = TABLE.get_item(
+        item = Globals().TABLE.get_item(
             Key={
                 "pk": user,
                 "sk": sk
@@ -109,14 +99,14 @@ class CodeBytes:
                 raise Exception(f"Missing value for required attribute '{x}'")
 
     def create(self):
-        self.pk = self.user or "SYSTEM"
         self.sk = f"{self._identifier}~{self.item['name']}"
+        self.pk = self.user
         self.__typename = self._identifier.title()
         self.createdAt = self.get_time(op="createdAt")
         self.updatedAt = self.get_time(op="updatedAt")
         self.validate_keys()
         try:
-            TABLE.put_item(
+            Globals().TABLE.put_item(
                 Item=self.item,
                 ConditionExpression=Attr("pk").not_exists() & Attr("sk").not_exists()
             )
@@ -138,7 +128,7 @@ class CodeBytes:
         self.validate_keys(update=True)
 
         try:
-            TABLE.put_item(
+            Globals().TABLE.put_item(
                 Item=item,
                 ConditionExpression=Attr("system").ne(True)
             )
@@ -158,7 +148,7 @@ class Runtime(CodeBytes):
     _identifier = "RUNTIME"
     _indexes = {}
     executor = None
-    __client = LAMBDA
+    __client = Globals().LAMBDA
     immutable = {
         "name",
         "user",
@@ -184,7 +174,7 @@ class Runtime(CodeBytes):
     def __init__(
         self,
         name: str,
-        user: str = None,
+        user: str = Globals().user,
         requirements: List[str] = [],
         **kwargs
     ):
@@ -195,7 +185,7 @@ class Runtime(CodeBytes):
             **kwargs
         )
 
-    def execute(self, code, timeout=DEFAULT_LAMBDA_TIMEOUT):
+    def execute(self, code, timeout=Globals().DEFAULT_LAMBDA_TIMEOUT):
         payload = dumps({
             "code": code,
             "timeout": timeout
@@ -239,13 +229,15 @@ class Snippet(CodeBytes):
         self,
         runtime: str,
         code: str,
-        user: str = SYSTEM_USER,
+        user: str = Globals().user,
         name: str = None,
         public: bool = True,
         description: str = "",
         permissions: List[dict] = [],
     ):
-
+        print(Globals().user)
+        print(user)
+        exit()
         super().__init__(
             self,
             name=name,
@@ -256,10 +248,11 @@ class Snippet(CodeBytes):
             description=description,
             permissions=permissions
         )
-        self.executor = Runtime.get(runtime, user)
+
+        # self.executor = Runtime.get(runtime, user)
 
     def create(self):
-        if not self.user or self.user == SYSTEM_USER:
+        if not self.user or self.user == Globals().SYSTEM_USER:
             self.public = True
             user_url_var = "public"
             self.TTL = self.get_ttl()
@@ -267,20 +260,20 @@ class Snippet(CodeBytes):
         else:
             user_url_var = self.user
 
-        url = f"{APP_URL}/snippets/{user_url_var}/{self.name}"
+        url = f"{Globals().APP_URL}/snippets/{user_url_var}/{self.name}"
         self.ro_url = f"{url}/get"
         self.rw_url = f"{url}/edit"
 
         return super().create()
 
     def get_ttl(self):
-        return int(time()) + (FREE_SNIPPET_TTL_HOURS * 3600)
+        return int(time()) + (Globals().FREE_SNIPPET_TTL_HOURS * 3600)
 
     def exec(self):
         return self.executor.execute(self.code)
 
 
-snippet = Snippet(code="print('called func')", runtime="python38")
-print(snippet)
-print(snippet.create().dict())
-print(snippet.exec())
+#snippet = Snippet(code="print('called func')", runtime="python38")
+#print(snippet)
+#print(snippet.create().dict())
+#print(snippet.exec())
