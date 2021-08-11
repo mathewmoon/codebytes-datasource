@@ -191,13 +191,15 @@ class Runtime(CodeBytes):
         "name"
     }
 
-    #def __new__(
-    #    cls,
-    #    *args,
-    #    **kwargs
-    #):
-    #    instance = super().__new__(cls, *args, **kwargs)
-    #    return instance
+    """
+    def __new__(
+        cls,
+        *args,
+        **kwargs
+    ):
+        instance = super().__new__(cls, *args, **kwargs)
+        return instance
+    """
 
     def __init__(
         self,
@@ -249,9 +251,11 @@ class Snippet(CodeBytes):
         "ro_url"
     }
 
-    # def __new__(cls, *args, **kwargs):
-    #     instance = super().__new__(cls, *args, **kwargs)
-    #     return instance
+    """
+    def __new__(cls, *args, **kwargs):
+        instance = super().__new__(cls, *args, **kwargs)
+        return instance
+    """
 
     def __init__(
         self,
@@ -295,4 +299,3 @@ class Snippet(CodeBytes):
 
     def exec(self):
         return self.executor.execute(self.code)
-
