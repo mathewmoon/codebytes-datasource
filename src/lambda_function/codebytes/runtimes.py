@@ -6,7 +6,7 @@ from urllib.parse import quote_plus
 from uuid import uuid4
 from .globals import Globals, isotime
 from botocore.exceptions import ClientError
-from boto3.dynamodb.conditions import Key, Attr
+from boto3.dynamodb.conditions import Attr
 
 
 class CodeBytes:
