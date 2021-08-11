@@ -14,3 +14,7 @@ SYSTEM_USER = "SYSTEM"
 
 def isotime():
     return datetime.now().isoformat()
+
+
+def get_user():
+    return SYSTEM_USER

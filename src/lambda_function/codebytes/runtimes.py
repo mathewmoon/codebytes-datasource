@@ -48,10 +48,10 @@ class CodeBytes:
         cls.__required |= cls.required
         cls.__indexes = cls._indexes
         cls.all_keys = set()
+        cls.all_keys |= cls.__immutable
         cls.all_keys |= cls.__required
         cls.all_keys |= cls.optional
-        cls.all_keys |= set(cls._indexes.keys())
-        cls.all_keys |= set(cls._indexes.values())
+        cls.all_keys |= set(cls.__indexes.values())
         cls.item = {}
         instance = super().__new__(cls)
         return instance
@@ -66,17 +66,22 @@ class CodeBytes:
                 self.item[k] = v
 
     def __setattr__(self, name, value) -> None:
-        print(self.__indexes)
         if name in self.all_keys and value is not None:
             self.item[name] = value
         if value and name in self.__indexes:
             index_name = self.__indexes[name]
+            self.item[index_name] = value
             super().__setattr__(index_name, value)
 
         super().__setattr__(name, value)
 
     @classmethod
-    def get_item(cls, name: str, user: str):
+    def get(
+        cls,
+        name: str,
+        user: str,
+        as_dict: bool = False
+    ):
         user = user or "SYSTEM"
         sk = f"{cls._identifier}~{name}"
         item = TABLE.get_item(
@@ -86,7 +91,10 @@ class CodeBytes:
             }
         ).get("Item", {})
 
-        return cls(**item)
+        if as_dict:
+            return item
+        else:
+            return cls(**item)
 
     def get_time(self, op="createdAt"):
         return {
@@ -94,16 +102,11 @@ class CodeBytes:
             "by": self.user
         }
 
-    def validate_keys(self, update=True):
+    def validate_keys(self):
         keys = list(self.item.keys())
         for x in self.__required:
             if x not in keys:
                 raise Exception(f"Missing value for required attribute '{x}'")
-
-        if update:
-            for k, v in self.item.items():
-                if k in self.__immutable and v != self.__getattribute__(k):
-                    raise Exception(f"Not allowed to change value for '{k}'")
 
     def create(self):
         self.pk = self.user or "SYSTEM"
@@ -117,7 +120,7 @@ class CodeBytes:
                 Item=self.item,
                 ConditionExpression=Attr("pk").not_exists() & Attr("sk").not_exists()
             )
-            return self.item
+            return self
         except ClientError as e:
             if e.response['Error']['Code'] != 'ConditionalCheckFailedException':
                 raise Exception("Item already exists. Create a new item or use update")
@@ -126,19 +129,29 @@ class CodeBytes:
 
     def update(self, item):
         self.updatedAt = self.get_time(op="updatedAt")
+        for k, v in item.items():
+            if k in self.__immutable and v != self.__getattribute__(k):
+                raise Exception(f"Not allowed to change value for '{k}'")
+            else:
+                setattr(self, k, v)
+
         self.validate_keys(update=True)
+
         try:
             TABLE.put_item(
                 Item=item,
                 ConditionExpression=Attr("system").ne(True)
             )
-            return self.item
+            return self
         except ClientError as e:
             if e.response['Error']['Code'] != 'ConditionalCheckFailedException':
                 raise Exception(
                     "Cannot update builtin items")
             else:
                 raise e
+
+    def dict(self):
+        return self.item
 
 
 class Runtime(CodeBytes):
@@ -214,7 +227,7 @@ class Snippet(CodeBytes):
     }
     immutable = {
         "runtime",
-        "rw_url;",
+        "rw_url",
         "ro_url"
     }
 
@@ -243,7 +256,7 @@ class Snippet(CodeBytes):
             description=description,
             permissions=permissions
         )
-        self.executor = Runtime.get_item(runtime, user)
+        self.executor = Runtime.get(runtime, user)
 
     def create(self):
         if not self.user or self.user == SYSTEM_USER:
@@ -265,3 +278,9 @@ class Snippet(CodeBytes):
 
     def exec(self):
         return self.executor.execute(self.code)
+
+
+snippet = Snippet(code="print('called func')", runtime="python38")
+print(snippet)
+print(snippet.create().dict())
+print(snippet.exec())
