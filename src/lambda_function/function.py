@@ -18,10 +18,9 @@ def handler(event, _):
 
 def set_user(identity):
     global GLOBALS
-    claims = identity.get("claims", {})
-    if user := claims.get("email"):
-        GLOBALS.user = user
+    if not identity:
+        GLOBALS.user = GLOBALS.ANONYMOUS_USER
     else:
-        GLOBALS.user = GLOBALS.SYSTEM_USER
+        GLOBALS.user = identity["username"]
 
     return GLOBALS.user

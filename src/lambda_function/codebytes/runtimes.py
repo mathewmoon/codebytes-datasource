@@ -2,6 +2,7 @@
 from typing import List
 from json import dumps, loads
 from time import time
+from urllib.parse import quote_plus
 from uuid import uuid4
 from .globals import Globals, isotime
 from botocore.exceptions import ClientError
@@ -70,9 +71,10 @@ class CodeBytes:
     def get(
         cls,
         name: str,
-        user: str = Globals().user,
+        user: str = None,
         as_dict: bool = False
     ):
+        user = user or Globals().user
         sk = f"{cls._identifier}~{name}"
         item = Globals().TABLE.get_item(
             Key={
@@ -81,10 +83,32 @@ class CodeBytes:
             }
         ).get("Item", {})
 
+        if not cls.check_permissions(user, "r", item):
+            raise Exception("Not authorized to get item")
+
         if as_dict:
             return item
         else:
             return cls(**item)
+
+    @classmethod
+    def check_permissions(cls, user, permission, item):
+        permissions = item.get("permissions", [])
+        if item["pk"] == user:
+            return True
+
+        for item in permissions:
+            if item["user"] == user and item.get("permission"):
+                return True
+
+        if item.get("public") and permission == "r":
+            return True
+
+        if item["pk"] == "PUBLIC_SNIPPETS":
+            return True
+
+        if item["pk"] == "PUBLIC_RUNTIMES" and permission == "r":
+            return True
 
     def get_time(self, op="createdAt"):
         return {
@@ -112,7 +136,7 @@ class CodeBytes:
             )
             return self
         except ClientError as e:
-            if e.response['Error']['Code'] != 'ConditionalCheckFailedException':
+            if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
                 raise Exception("Item already exists. Create a new item or use update")
             else:
                 raise e
@@ -124,6 +148,10 @@ class CodeBytes:
                 raise Exception(f"Not allowed to change value for '{k}'")
             else:
                 setattr(self, k, v)
+        self.item.update(item)
+
+        if not self.check_permissions(self.user, "rw", item):
+            raise Exception("Not authorized to update item")
 
         self.validate_keys(update=True)
 
@@ -134,7 +162,7 @@ class CodeBytes:
             )
             return self
         except ClientError as e:
-            if e.response['Error']['Code'] != 'ConditionalCheckFailedException':
+            if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
                 raise Exception(
                     "Cannot update builtin items")
             else:
@@ -163,24 +191,24 @@ class Runtime(CodeBytes):
         "name"
     }
 
-    def __new__(
-        cls,
-        *args,
-        **kwargs
-    ):
-        instance = super().__new__(cls, *args, **kwargs)
-        return instance
+    #def __new__(
+    #    cls,
+    #    *args,
+    #    **kwargs
+    #):
+    #    instance = super().__new__(cls, *args, **kwargs)
+    #    return instance
 
     def __init__(
         self,
         name: str,
-        user: str = Globals().user,
+        user: str = None,
         requirements: List[str] = [],
         **kwargs
     ):
         super().__init__(
             name=name,
-            user=user,
+            user=user or Globals().user,
             requirements=requirements,
             **kwargs
         )
@@ -221,38 +249,34 @@ class Snippet(CodeBytes):
         "ro_url"
     }
 
-    def __new__(cls, *args, **kwargs):
-        instance = super().__new__(cls, *args, **kwargs)
-        return instance
+    # def __new__(cls, *args, **kwargs):
+    #     instance = super().__new__(cls, *args, **kwargs)
+    #     return instance
 
     def __init__(
         self,
         runtime: str,
         code: str,
-        user: str = Globals().user,
+        user: str = None,
         name: str = None,
         public: bool = True,
         description: str = "",
         permissions: List[dict] = [],
     ):
-        print(Globals().user)
-        print(user)
-        exit()
         super().__init__(
             self,
             name=name,
             runtime=runtime,
             code=code,
-            user=user,
+            user=user or Globals().user,
             public=public,
             description=description,
             permissions=permissions
         )
-
-        # self.executor = Runtime.get(runtime, user)
+        self.executor = Runtime.get(runtime, user)
 
     def create(self):
-        if not self.user or self.user == Globals().SYSTEM_USER:
+        if not self.user or self.user == Globals().ANONYMOUS_USER:
             self.public = True
             user_url_var = "public"
             self.TTL = self.get_ttl()
@@ -260,7 +284,7 @@ class Snippet(CodeBytes):
         else:
             user_url_var = self.user
 
-        url = f"{Globals().APP_URL}/snippets/{user_url_var}/{self.name}"
+        url = f"{Globals().APP_URL}/snippets/{user_url_var}/{quote_plus(self.name)}"
         self.ro_url = f"{url}/get"
         self.rw_url = f"{url}/edit"
 
@@ -272,8 +296,3 @@ class Snippet(CodeBytes):
     def exec(self):
         return self.executor.execute(self.code)
 
-
-#snippet = Snippet(code="print('called func')", runtime="python38")
-#print(snippet)
-#print(snippet.create().dict())
-#print(snippet.exec())

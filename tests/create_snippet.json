@@ -1,0 +1,18 @@
+{
+    "identity": {
+        "username": "mathewmoon",
+        "claims": {
+            "email": "me@mathewmoon.net"
+        }
+    },
+    "info": {
+        "parentTypeName": "Snippet",
+        "fieldName": "Create"
+    },
+    "arguments": {
+        "name": "first from appsync",
+        "code": "print('from appsync')",
+        "runtime": "python38"
+    },
+    "source": {}
+}

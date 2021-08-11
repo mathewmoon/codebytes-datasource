@@ -1,6 +1,7 @@
 #!/usr/bin/env python3.8
 from resolvers import router
 from codebytes.runtimes import Snippet
+from codebytes.globals import Globals
 
 
 @router.route(path="Snippet.Create")
@@ -8,7 +9,6 @@ def create_snippet():
     snippet = Snippet(
         **router.arguments
     )
-    print(snippet.dict())
     if res := snippet.create():
         return res.item
 
