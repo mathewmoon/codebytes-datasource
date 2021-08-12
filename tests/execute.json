@@ -1,0 +1,17 @@
+{
+    "identity": {
+        "username": "mathewmoon",
+        "claims": {
+            "email": "me@mathewmoon.net"
+        }
+    },
+    "info": {
+        "parentTypeName": "Snippet",
+        "fieldName": "Execute"
+    },
+    "arguments": {
+        "name": "first from appsync",
+        "user": "mathewmoon"
+    },
+    "source": {}
+}
