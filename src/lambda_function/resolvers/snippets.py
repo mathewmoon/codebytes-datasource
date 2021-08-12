@@ -26,9 +26,9 @@ def update_snippet():
 
 @router.route(path="Snippet.Execute")
 def execute_snippet():
-    name = router.arguments["name"]
+    # name = router.arguments["name"]
     if snippet := Snippet.get(
-        name=name
+        **router.arguments
     ):
         return snippet.exec()
     else:
